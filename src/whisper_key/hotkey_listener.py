@@ -8,7 +8,7 @@
 import logging
 
 from .hotkey_gestures import TapLatch
-from .platform import hotkeys
+from .platform import hotkeys, mouse
 from .state_manager import StateManager
 
 class HotkeyListener:
@@ -17,7 +17,8 @@ class HotkeyListener:
                  command_hotkey: str = None, rephrase_hotkey: str = None,
                  pause_hotkey: str = None, transforms_manager=None,
                  recording_mode: str = "push_to_talk", paste_last_hotkey: str = None,
-                 double_tap_to_lock: bool = False, double_tap_window_ms: int = 400):
+                 double_tap_to_lock: bool = False, double_tap_window_ms: int = 400,
+                 mouse_button: str = ''):
         self.state_manager = state_manager
         self.recording_hotkey = recording_hotkey
         self.stop_key = stop_key
@@ -29,6 +30,10 @@ class HotkeyListener:
         self.transforms_manager = transforms_manager
         self.recording_mode = recording_mode
         self.paste_last_hotkey = paste_last_hotkey
+        # A mouse button as a second record trigger (issue #36): '' is off,
+        # else middle / x1 / x2 / both. See _start_mouse_trigger().
+        self.mouse_button = (mouse_button or '').strip().lower()
+        self._mouse_trigger = None
         # Hands-free double-tap only applies to push-to-talk; toggle mode is
         # already hands-free.
         self.tap_latch = None
@@ -292,11 +297,63 @@ class HotkeyListener:
         except Exception as e:
             self.logger.error(f"Failed to start hotkey listener: {e}")
             raise
+        self._start_mouse_trigger()
+
+    # ── Mouse button push-to-talk (issue #36, Wispr Flow's Mouse Flow) ──────
+    # The mouse button drives exactly what the record hotkey drives, so push-
+    # to-talk, double-tap-to-lock, toggle mode and pause all behave the same.
+    # Optional and best-effort: if it can't start, the keyboard still works.
+    def _mouse_callbacks(self):
+        if self.recording_mode == "push_to_talk" and self.tap_latch:
+            return self.tap_latch.press, self.tap_latch.release
+        if self.recording_mode == "push_to_talk":
+            return self._standard_hotkey_pressed, self._push_to_talk_released
+        # Toggle mode: each click starts, or stops a recording in progress.
+        # Letting go re-arms the stop / auto-send keys, as releasing the record
+        # hotkey does, so a mouse-started recording can still end on Ctrl/Alt.
+        def toggle():
+            if self.state_manager.audio_recorder.get_recording_status():
+                self.state_manager.stop_recording()
+            else:
+                self._standard_hotkey_pressed()
+        return toggle, self._arm_keys_on_release
+
+    def _start_mouse_trigger(self):
+        if not self.mouse_button or self._mouse_trigger:
+            return
+        if self.mouse_button not in getattr(mouse, 'BUTTONS', {}):
+            self.logger.warning(f"Unknown hotkey.mouse_button {self.mouse_button!r}; "
+                                "use middle, x1, x2 or both")
+            return
+        if not mouse.is_supported():
+            self.logger.warning("Mouse push-to-talk isn't available on this platform yet")
+            return
+        press, release = self._mouse_callbacks()
+        try:
+            trigger = mouse.MouseButtonTrigger(
+                self.mouse_button, self._gated(press, False), self._gated(release, False),
+                # While paused the button does its normal job again.
+                is_active=lambda: not self.is_paused)
+            if trigger.start():
+                self._mouse_trigger = trigger
+            else:
+                self.logger.warning("Mouse push-to-talk could not start; the keyboard hotkey still works")
+        except Exception as e:
+            self.logger.warning(f"Mouse push-to-talk unavailable: {e}")
+
+    def _stop_mouse_trigger(self):
+        if self._mouse_trigger:
+            try:
+                self._mouse_trigger.stop()
+            except Exception as e:
+                self.logger.debug(f"Mouse trigger stop failed: {e}")
+            self._mouse_trigger = None
 
     def stop_listening(self):
         if not self.is_listening:
             return
 
+        self._stop_mouse_trigger()
         try:
             hotkeys.stop()
             self.is_listening = False

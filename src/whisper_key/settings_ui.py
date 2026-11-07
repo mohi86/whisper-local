@@ -13,6 +13,7 @@
 # it without disturbing the rest. row_index[path] = {widgets, label, tab_index}
 # is the structure that powers search.
 
+from .ui_theme import c as _c   # light/dark/system theme (ui_theme.py)
 import logging
 
 # Imported lazily up here so module-level helper functions can use it. Falls
@@ -46,13 +47,13 @@ def reset_settings_preserving_hotwords(settings_path) -> list:
             YAML().dump({'whisper': {'hotwords': preserved}}, f)
     return preserved
 
-BG = '#0d1117'
-BG2 = '#161b22'
-BG3 = '#21262d'
-FG = '#c9d1d9'
-FG_DIM = '#8b949e'
-ACCENT = '#1f6feb'
-SEP = '#30363d'
+BG = _c('#0d1117')
+BG2 = _c('#161b22')
+BG3 = _c('#21262d')
+FG = _c('#c9d1d9')
+FG_DIM = _c('#8b949e')
+ACCENT = _c('#1f6feb')
+SEP = _c('#30363d')
 
 
 # Public entry point. Loads the live config, builds the window, blocks on
@@ -194,7 +195,7 @@ def run_settings_window():
               bg=BG3, fg=FG, relief='flat', padx=10, pady=4,
               font=('Segoe UI', 9)).pack(side='left', padx=(0, 4))
     tk.Button(left, text='Reset to defaults', command=reset_defaults,
-              bg=BG3, fg='#f85149', relief='flat', padx=10, pady=4,
+              bg=BG3, fg=_c('#f85149'), relief='flat', padx=10, pady=4,
               font=('Segoe UI', 9)).pack(side='left')
 
     right = tk.Frame(bottom, bg=BG)
@@ -443,6 +444,12 @@ def _build_general_tab(nb, cm, vars_, row_index):
     _check(tab, 'whisper.prompt_from_selection',
            'Seed prompt from selected text at recording start', v, row_index)
 
+    from .ui_theme import THEMES
+    v = tk.StringVar(master=nb, value=str(_v(cfg, 'ui', 'theme', default='system')))
+    vars_['ui.theme'] = v
+    _row(tab, 'ui.theme', 'Theme', lambda p: _combo(p, v, list(THEMES)), row_index,
+         note='system follows your OS dark mode. Windows opened afterwards use it.')
+
     v = tk.BooleanVar(master=nb, value=bool(_v(cfg, 'clipboard', 'auto_paste', default=True)))
     vars_['clipboard.auto_paste'] = v
     _check(tab, 'clipboard.auto_paste',
@@ -546,6 +553,12 @@ def _build_hotkeys_tab(nb, cm, vars_, row_index):
     vars_['hotkey.double_tap_to_lock'] = v
     _check(tab, 'hotkey.double_tap_to_lock',
            'Hands-free: double-tap the record hotkey to lock recording on', v, row_index)
+
+    v = tk.StringVar(master=nb, value=str(_v(cfg, 'hotkey', 'mouse_button', default='') or _MOUSE_OFF))
+    vars_['hotkey.mouse_button'] = v
+    _row(tab, 'hotkey.mouse_button', 'Mouse button to dictate',
+         lambda p: _combo(p, v, [_MOUSE_OFF, 'middle', 'x1', 'x2', 'both']), row_index,
+         note='Hold it like the record hotkey. x1/x2 are the side buttons. Windows only.')
 
     _footnote(tab, 'Hotkey changes take effect on next app restart. '
                    'Format: lowercase modifiers separated by + (e.g. "ctrl+win+space").')
@@ -677,6 +690,9 @@ _NUMERIC_PATHS = {
     'stats.typing_wpm',
 }
 
+# Shown in the mouse-button picker for "no mouse button".
+_MOUSE_OFF = '(off)'
+
 # Shown in the style picker for "no style: use the individual toggles".
 _NO_STYLE = '(none)'
 
@@ -689,6 +705,8 @@ def _coerce(var, raw, path):
     if isinstance(var, tk.BooleanVar):
         return bool(raw)
     if path == 'postprocess.style' and raw == _NO_STYLE:
+        return ''
+    if path == 'hotkey.mouse_button' and raw == _MOUSE_OFF:
         return ''
     if path == 'whisper.languages':
         from .dictation_languages import normalize_languages

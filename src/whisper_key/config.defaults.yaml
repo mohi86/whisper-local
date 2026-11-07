@@ -214,6 +214,15 @@ hotkey: # Hotkey Configuration
     double_tap_to_lock: false
     double_tap_window_ms: 400
 
+    # A mouse button that records like the record hotkey (hold it to dictate,
+    # or click it in toggle mode). Its normal action, such as Back in a browser,
+    # is blocked while it's in use, and comes back while hotkeys are paused.
+    #   ""     = off
+    #   middle = the wheel button
+    #   x1/x2  = the side buttons ("back" / "forward"); both = either one
+    # Windows only for now.
+    mouse_button: ""
+
 vad: # Voice Activity Detection (VAD)
     # Voice Activity Detection (VAD) Pre-check
     # Uses TEN VAD to detect speech before transcription (prevents hallucinations on silence)
@@ -630,6 +639,14 @@ postprocess: # Transcription post-processing pipeline
             Polish this dictation. Fix punctuation and capitalization only. Do not change wording or add anything. Output ONLY the polished text:
 
             {text}
+
+ui: # How the app's windows look
+    # Theme for Settings, History, the welcome window, cheat sheet and the
+    # dictation-captured window. The floating level pill stays dark.
+    #   system = follow Windows / macOS dark mode
+    #   dark | light = always that
+    # Applies to windows opened after the change; restart for the rest.
+    theme: system
 
 history: # Transcript history (the --history window and the tray's Recent list)
     # How long to keep the text of past dictations on this machine, in days.

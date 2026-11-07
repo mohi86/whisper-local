@@ -24,6 +24,16 @@ class OptionalComponent:
             return lambda *args, **kwargs: None
 
 
+# hotkey.mouse_button values as people say them, shared by the startup banner
+# and the cheat sheet so the two never disagree.
+MOUSE_BUTTON_LABELS = {
+    'middle': 'MIDDLE CLICK',
+    'x1': 'MOUSE SIDE (BACK)',
+    'x2': 'MOUSE SIDE (FORWARD)',
+    'both': 'MOUSE SIDE BUTTON',
+}
+
+
 def beautify_hotkey(hotkey_string: str) -> str:
     if not hotkey_string:
         return ""

@@ -5,6 +5,7 @@
 # suggests hotwords from words the user actually dictates. Writes
 # user_settings.yaml directly (round-trip YAML) so it works without a running app.
 
+from .ui_theme import c as _c   # light/dark/system theme (ui_theme.py)
 import logging
 import threading
 from pathlib import Path
@@ -159,6 +160,22 @@ def show_dictionary() -> int:
     return 0
 
 
+# Sizes the dialog to fit what was packed into it, then centres it. A fixed
+# pixel height clipped the Add/Close row off the bottom at 150% display scaling,
+# because fonts grow with DPI and the old 160 px did not. The minimum width is
+# in points so it scales the same way the text does.
+def _size_and_center(root, min_width_points: int):
+    try:
+        root.update_idletasks()
+        width = max(root.winfo_reqwidth(), int(root.winfo_fpixels(f'{min_width_points}p')))
+        height = root.winfo_reqheight()
+        x = (root.winfo_screenwidth() - width) // 2
+        y = (root.winfo_screenheight() - height) // 2
+        root.geometry(f"{width}x{height}+{x}+{y}")
+    except Exception as e:
+        logger.debug(f"Could not size the add-word dialog: {e}")
+
+
 # Opens the small "add a hotword" dialog (tray item / CLI). Singleton-guarded:
 # re-invoking raises the existing window instead of stacking another Tk root and
 # thread. `on_added` lets the caller refresh live state (e.g. the running engine's
@@ -187,30 +204,21 @@ def show_add_word_dialog(on_added=None, blocking: bool = False):
             with _dialog_lock:
                 _dialog_root = root
             root.title("Whisper Local — Add Word")
-            root.configure(bg='#0d1117')
+            root.configure(bg=_c('#0d1117'))
             try:
                 root.attributes('-topmost', True)
             except Exception:
                 pass
 
-            w, h = 380, 160
-            try:
-                root.update_idletasks()
-                sw = root.winfo_screenwidth()
-                sh = root.winfo_screenheight()
-                root.geometry(f"{w}x{h}+{(sw - w) // 2}+{(sh - h) // 2}")
-            except Exception:
-                root.geometry(f"{w}x{h}")
-
-            outer = tk.Frame(root, bg='#0d1117', padx=14, pady=12)
+            outer = tk.Frame(root, bg=_c('#0d1117'), padx=14, pady=12)
             outer.pack(fill='both', expand=True)
 
             tk.Label(outer, text="Add to your hotword dictionary",
-                     bg='#0d1117', fg='#3fb950',
+                     bg=_c('#0d1117'), fg=_c('#3fb950'),
                      font=('Segoe UI Semibold', 11),
                      anchor='w').pack(fill='x')
             tk.Label(outer, text="Names, jargon, acronyms — anything Whisper mishears",
-                     bg='#0d1117', fg='#7d8590',
+                     bg=_c('#0d1117'), fg=_c('#7d8590'),
                      font=('Segoe UI', 9),
                      anchor='w').pack(fill='x', pady=(2, 10))
 
@@ -219,8 +227,8 @@ def show_add_word_dialog(on_added=None, blocking: bool = False):
             # that interpreter's empty copy: "Type a word first" on every Add.
             entry_var = tk.StringVar(master=root)
             entry = tk.Entry(outer, textvariable=entry_var,
-                             bg='#161b22', fg='#c9d1d9',
-                             insertbackground='#c9d1d9',
+                             bg=_c('#161b22'), fg=_c('#c9d1d9'),
+                             insertbackground=_c('#c9d1d9'),
                              relief='flat', bd=0,
                              font=('Segoe UI', 11))
             entry.pack(fill='x', ipady=6, pady=(0, 12))
@@ -228,7 +236,7 @@ def show_add_word_dialog(on_added=None, blocking: bool = False):
 
             status_var = tk.StringVar(master=root, value="")
             tk.Label(outer, textvariable=status_var,
-                     bg='#0d1117', fg='#7d8590',
+                     bg=_c('#0d1117'), fg=_c('#7d8590'),
                      font=('Segoe UI', 9),
                      anchor='w').pack(fill='x', pady=(0, 8))
 
@@ -254,19 +262,21 @@ def show_add_word_dialog(on_added=None, blocking: bool = False):
                 try: root.destroy()
                 except Exception: pass
 
-            buttons = tk.Frame(outer, bg='#0d1117')
+            buttons = tk.Frame(outer, bg=_c('#0d1117'))
             buttons.pack(fill='x')
 
             tk.Button(buttons, text="Close", command=close,
-                      bg='#161b22', fg='#c9d1d9',
-                      activebackground='#30363d', activeforeground='#c9d1d9',
+                      bg=_c('#161b22'), fg=_c('#c9d1d9'),
+                      activebackground=_c('#30363d'), activeforeground=_c('#c9d1d9'),
                       bd=0, relief='flat', padx=14, pady=6,
                       font=('Segoe UI', 9), cursor='hand2').pack(side='right', padx=(8, 0))
             tk.Button(buttons, text="Add", command=commit,
-                      bg='#3fb950', fg='#0d1117',
-                      activebackground='#46c155', activeforeground='#0d1117',
+                      bg=_c('#3fb950'), fg=_c('#0d1117'),
+                      activebackground=_c('#46c155'), activeforeground=_c('#0d1117'),
                       bd=0, relief='flat', padx=14, pady=6,
                       font=('Segoe UI Semibold', 9), cursor='hand2').pack(side='right')
+
+            _size_and_center(root, min_width_points=285)
 
             root.protocol("WM_DELETE_WINDOW", close)
             root.bind('<Return>', commit)

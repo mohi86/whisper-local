@@ -9,6 +9,7 @@
 # ONLY copy of the text, so it never copies on its own — the Copy button is
 # there for when they want it.
 
+from .ui_theme import c as _c   # light/dark/system theme (ui_theme.py)
 import logging
 import threading
 from typing import Optional
@@ -18,13 +19,13 @@ logger = logging.getLogger(__name__)
 WIDTH = 520
 MIN_HEIGHT = 180
 MAX_HEIGHT = 480
-BG = '#0d1117'
-PANEL = '#161b22'
-BORDER = '#30363d'
-TEXT = '#c9d1d9'
-DIM = '#7d8590'
-ACCENT = '#3fb950'
-ACCENT_HOVER = '#46c155'
+BG = _c('#0d1117')
+PANEL = _c('#161b22')
+BORDER = _c('#30363d')
+TEXT = _c('#c9d1d9')
+DIM = _c('#7d8590')
+ACCENT = _c('#3fb950')
+ACCENT_HOVER = _c('#46c155')
 
 
 class FallbackWindow:
@@ -178,7 +179,7 @@ class FallbackWindow:
 
             btn_copy = tk.Button(
                 button_row, text="Copy", command=_copy_again,
-                bg=ACCENT, fg='#0d1117', activebackground=ACCENT_HOVER, activeforeground='#0d1117',
+                bg=ACCENT, fg=_c('#0d1117'), activebackground=ACCENT_HOVER, activeforeground=_c('#0d1117'),
                 bd=0, relief='flat', padx=14, pady=6,
                 font=('Segoe UI Semibold', 9),
                 cursor='hand2',

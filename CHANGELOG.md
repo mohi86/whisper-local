@@ -2,6 +2,38 @@
 
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.24.0]
+
+### Added
+- **Dictate with a mouse button** (#36, Wispr Flow's "Mouse Flow"). Set
+  `hotkey.mouse_button` to `middle`, `x1` (side button, usually Back), `x2`
+  (usually Forward) or `both` (Settings → Hotkeys → "Mouse button to dictate").
+  It does exactly what the record hotkey does: hold to talk, double-tap to
+  lock, or click to start and stop in toggle mode. The chosen button stops
+  doing its normal job (a side button no longer goes Back in the browser)
+  until you pause hotkeys. The keyboard hotkey keeps working, the left and
+  right buttons are never offered, and the cheat sheet and `--doctor` show it.
+  Windows only for now. Thanks @limingzhang1028 for the request and for
+  testing the design on real hardware.
+- **Light and dark windows.** `ui.theme: system | dark | light` (Settings →
+  General → Theme), like Wispr Flow's dark mode. `system`, the default,
+  follows the OS setting. It covers Settings, History, the welcome window, the
+  cheat sheet, the dictation-captured window and the add-word dialog. Until
+  now they were dark whatever the OS was set to. The floating level pill
+  stays dark, because it sits over whatever you are working in.
+
+### Fixed
+- **The level overlay was invisible on Windows** (#35). With
+  `overlay.click_through: true`, the default, the pill never showed, though
+  everything else worked. The click-through style was applied to Tk's inner
+  window instead of its frame. That made the inner window a layered window
+  that nothing ever drew. The style now goes on the frame: the pill shows, and
+  clicks still pass through it. A failure in the overlay is now logged as a
+  warning, so it reaches `app.log` instead of disappearing. Thanks @brich741
+  for a precise report, with the workaround and the logging gap.
+- The add-word dialog cut off its Add and Close buttons at 150% display
+  scaling. It now sizes itself to its contents.
+
 ## [0.23.0]
 
 Three dictation features from Wispr Flow's recent changelog, built to work

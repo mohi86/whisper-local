@@ -102,6 +102,8 @@ This is a **community tool**, not a product. There's no support SLA, no roadmap 
 - ✨ **Snippets** — say "my signature" (or any trigger you define) mid-dictation and the full text is typed, with `${date}` / `${time}` / `${clipboard}` filled in
 - 🎨 **Writing styles** — formal, casual, very casual or verbatim, globally or per app (email formal, chat casual, code verbatim out of the box)
 - 📌 **Paste last dictation** — `Alt+Shift+Z` types your last dictation again when it landed in the wrong window
+- 🖱️ **Dictate with a mouse button** — hold the middle or a side button instead of the hotkey (`hotkey.mouse_button`, opt-in, Windows)
+- 🌗 **Light, dark or system theme** — the app's windows follow your OS dark mode, or pick one (`ui.theme`)
 - 🙌 **Hands-free lock** — double-tap the record hotkey to keep recording without holding it; tap again to stop (`hotkey.double_tap_to_lock`, opt-in)
 - 🤫 **Whisper mode** — boosts quiet speech so you can dictate in an open office (`audio.whisper_mode`, opt-in)
 - 🔢 **Smart formatting** — deterministic, offline: "3 p.m." → "3 PM", "john at example dot com" → "john@example.com" (`postprocess.smart_formatting`, each toggle opt-in)
@@ -386,6 +388,8 @@ Delete the file and restart to reset to defaults. Highlights:
 | `hotkey.recording_mode` | `push_to_talk` | `push_to_talk` (hold to talk) or `toggle` |
 | `hotkey.double_tap_to_lock` | `false` | Double-tap the record hotkey for hands-free recording |
 | `hotkey.paste_last_hotkey` | `alt+shift+z` | Type your last dictation again (`ctrl+option+v` on macOS) |
+| `hotkey.mouse_button` | `""` | `middle`, `x1`, `x2` or `both`: hold that mouse button to dictate (Windows) |
+| `ui.theme` | `system` | `system` follows the OS; `dark` or `light` for the app's windows |
 | `postprocess.cleanup` | `light` | `none` / `light` / `medium` / `high`: how much of what you said gets tidied |
 | `postprocess.style` | `""` | `formal` / `casual` / `very_casual` / `verbatim`, or per app in `app_rules.yaml` |
 | `history.retention_days` | `null` | `0` stores no history at all; `7` keeps a week |

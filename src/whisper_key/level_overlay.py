@@ -164,7 +164,7 @@ class LevelOverlay:
         try:
             self.root.after(0, fn)
         except Exception as e:
-            logger.debug(f"Overlay call failed: {e}")
+            logger.warning(f"Overlay call failed: {e}")
 
     def _set_mode(self, mode: str):
         self._mode = mode
@@ -289,20 +289,32 @@ class LevelOverlay:
         except Exception as e:
             logger.debug(f"Position failed: {e}")
 
+    # Lets mouse clicks pass through the pill to whatever is underneath.
+    #
+    # The style must go on the top-level FRAME window. winfo_id() is Tk's inner
+    # child window, and this used to set WS_EX_LAYERED | WS_EX_TRANSPARENT on
+    # that child: a layered window paints nothing until its layer attributes
+    # are set, so the pill stayed invisible whenever click-through was on (the
+    # default), and clicks didn't pass through either, because the frame never
+    # got WS_EX_TRANSPARENT (issue #35). Tk has already made the frame layered
+    # for its -alpha, so adding WS_EX_TRANSPARENT there is all that's needed.
     def _make_click_through(self):
         if not self.click_through or platform.system() != 'Windows':
             return
         try:
             import ctypes
-            hwnd = self.root.winfo_id()
+            self.root.update_idletasks()   # the frame exists once Tk has mapped it
+            frame = int(self.root.wm_frame(), 16)
             GWL_EXSTYLE = -20
             WS_EX_LAYERED = 0x80000
             WS_EX_TRANSPARENT = 0x20
             user32 = ctypes.windll.user32
-            current = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
-            user32.SetWindowLongW(hwnd, GWL_EXSTYLE, current | WS_EX_LAYERED | WS_EX_TRANSPARENT)
+            current = user32.GetWindowLongW(frame, GWL_EXSTYLE)
+            user32.SetWindowLongW(frame, GWL_EXSTYLE, current | WS_EX_LAYERED | WS_EX_TRANSPARENT)
         except Exception as e:
-            logger.debug(f"Click-through setup failed: {e}")
+            # Visible, at a level that reaches app.log: a failure here used to
+            # vanish at debug level, so a broken overlay left no trace.
+            logger.warning(f"Overlay click-through setup failed: {e}")
 
     def _update_loop(self):
         if self._mode not in ('recording', 'processing') or not self.root:

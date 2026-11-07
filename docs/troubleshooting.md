@@ -24,6 +24,8 @@ This creates a zip with redacted logs, `--doctor` output, and recent crashes. At
 | Hotkey does nothing | Another app holds the same combination | Change `hotkey.recording_hotkey` in Settings; restart |
 | Text appears as ALL CAPS | Caps Lock was on when hotkey pressed | Push-to-talk releases reset modifiers — try toggling Caps Lock off |
 | "Mic captured pure silence" in `--selftest` | OS denied mic permission to your shell/terminal | Windows: Settings → Privacy & Security → Microphone. macOS: System Settings → Privacy & Security → Microphone |
+| Level overlay never appears on Windows, though dictation works (0.23.0 and older) | The click-through style was applied to the wrong window, which then drew nothing (#35) | Fixed in 0.24.0. On older versions set `overlay.click_through: false` |
+| A mouse side button no longer goes Back in the browser | `hotkey.mouse_button` uses it to dictate | Pause hotkeys to get it back for a while, or pick `middle` / turn it off in Settings → Hotkeys |
 | Tray icon missing | Windows hides tray icons by default | Click the `^` in the taskbar, drag the Whisper Local icon out |
 | App seems frozen on launch | Whisper model is downloading (first run) | Wait — `tiny` is ~75 MB, `large` is ~2.9 GB. Watch `%APPDATA%\whisperkey\app.log` |
 | "Could not register hotkeys" | Another instance is already running, or another app owns the combo | `whisper-local --quit` then relaunch. Or change the hotkey |

@@ -17,7 +17,7 @@ sys.path.insert(0, str(ROOT / "src"))
 # platform/macos/app.py redefines an Objective-C class, which pyobjc refuses.
 _PLATFORM_SUBMODULES = ('hotkeys', 'keyboard', 'foreground', 'app', 'console',
                         'permissions', 'icons', 'paths', 'instance_lock', 'gpu',
-                        'audio_endpoints')
+                        'audio_endpoints', 'mouse')
 
 
 # A module whose every attribute is a MagicMock unless set explicitly.
@@ -54,6 +54,7 @@ def fake_platform_modules(**app_attrs) -> dict:
     # A MagicMock is truthy, which would start the default-microphone watcher
     # thread in any test that builds a StateManager under these fakes.
     modules['whisper_key.platform.audio_endpoints'].is_supported = lambda: False
+    modules['whisper_key.platform.mouse'].is_supported = lambda: False
     modules['whisper_key.platform'] = package
     return modules
 
@@ -4838,3 +4839,290 @@ class WisprOctoberFeatureTests(unittest.TestCase):
         body = body[:body.index('# Types the last dictation again')]
         for writes_to_disk in ('open(', 'np.save', 'write_bytes', 'wave.'):
             self.assertNotIn(writes_to_disk, body)
+
+
+# v0.24.0: the invisible level overlay (#35), mouse-button dictation (#36,
+# Wispr Flow's Mouse Flow) and light / dark / system window themes.
+class MouseFlowAndThemeTests(unittest.TestCase):
+
+    # ── #35: the overlay drew nothing on Windows ────────────────────────────
+    def test_click_through_styles_the_frame_not_the_inner_window(self):
+        src = (ROOT / 'src' / 'whisper_key' / 'level_overlay.py').read_text(encoding='utf-8')
+        body = src[src.index('def _make_click_through'):]
+        body = body[:body.index('\n    def ', 10)]
+        self.assertIn('wm_frame()', body)
+        self.assertNotIn('winfo_id()', body, 'a layered inner window paints nothing (#35)')
+        self.assertIn('logger.warning', body, 'a failure must reach app.log')
+
+    def test_click_through_on_a_real_window(self):
+        if sys.platform != 'win32':
+            self.skipTest('Windows only')
+        try:
+            import tkinter as tk
+            root = tk.Tk()
+        except Exception as e:
+            self.skipTest(f'no Tk: {e}')
+        import ctypes
+        import types
+        try:
+            root.overrideredirect(True)
+            root.attributes('-alpha', 0.9)
+            root.geometry('40x20+0+0')
+            from whisper_key.level_overlay import LevelOverlay
+            LevelOverlay._make_click_through(types.SimpleNamespace(root=root, click_through=True))
+            get_style = ctypes.windll.user32.GetWindowLongW
+            frame_style = get_style(int(root.wm_frame(), 16), -20)
+            inner_style = get_style(root.winfo_id(), -20)
+            self.assertTrue(frame_style & 0x20, 'frame is click-through')
+            self.assertFalse(inner_style & 0x80000, 'inner window must not be layered')
+        finally:
+            root.destroy()
+
+    # ── #36: mouse-button dictation ─────────────────────────────────────────
+    def _listener(self, mode='push_to_talk', double_tap=False, supported=True, trigger_cls=None):
+        import logging
+        import unittest.mock as mock
+        # hotkey_listener imports StateManager, and with it numpy. Import numpy
+        # outside the patched sys.modules: a module first loaded inside it is
+        # dropped on cleanup, and numpy refuses to load a second time.
+        try:
+            import numpy  # noqa: F401
+        except ImportError:
+            self.skipTest('numpy not installed')
+        fakes = fake_platform_modules()
+        for name in ('PIL', 'PIL.Image', 'PIL.ImageDraw', 'pystray', 'sounddevice', 'soxr',
+                     'faster_whisper', 'faster_whisper.utils', 'playsound3'):
+            fakes[name] = _stand_in_module(name)
+        fake_mouse = fakes['whisper_key.platform.mouse']
+        fake_mouse.BUTTONS = {'middle': (), 'x1': (), 'x2': (), 'both': ()}
+        fake_mouse.is_supported = lambda: supported
+        if trigger_cls:
+            fake_mouse.MouseButtonTrigger = trigger_cls
+        reimport_under(self, fakes)
+        from whisper_key.hotkey_listener import HotkeyListener
+        from whisper_key.hotkey_gestures import TapLatch
+        listener = HotkeyListener.__new__(HotkeyListener)
+        listener.logger = logging.getLogger('test')
+        listener.state_manager = mock.Mock()
+        listener.recording_mode = mode
+        listener.recording_hotkey = 'ctrl+win'
+        listener.keys_armed = True
+        listener.is_paused = False
+        listener.mouse_button = 'x1'
+        listener._mouse_trigger = None
+        listener.tap_latch = None
+        if double_tap:
+            listener.tap_latch = TapLatch(start=listener._standard_hotkey_pressed,
+                                          stop=listener._push_to_talk_released,
+                                          is_recording=lambda: False)
+        return listener
+
+    def test_push_to_talk_holds_like_the_hotkey(self):
+        listener = self._listener()
+        press, release = listener._mouse_callbacks()
+        press()
+        listener.state_manager.start_recording.assert_called_once()
+        release()
+        listener.state_manager.stop_recording.assert_called_once()
+
+    def test_double_tap_to_lock_drives_the_mouse_too(self):
+        listener = self._listener(double_tap=True)
+        press, release = listener._mouse_callbacks()
+        self.assertEqual((press, release), (listener.tap_latch.press, listener.tap_latch.release))
+
+    def test_toggle_click_starts_then_stops_and_rearms_the_stop_keys(self):
+        listener = self._listener(mode='toggle')
+        press, release = listener._mouse_callbacks()
+        listener.state_manager.audio_recorder.get_recording_status.return_value = False
+        press()
+        listener.state_manager.start_recording.assert_called_once()
+        self.assertFalse(listener.keys_armed)
+        release()
+        self.assertTrue(listener.keys_armed, 'Ctrl must still stop a mouse-started recording')
+        listener.state_manager.audio_recorder.get_recording_status.return_value = True
+        press()
+        listener.state_manager.stop_recording.assert_called_once()
+
+    def test_trigger_is_gated_by_pause(self):
+        made = {}
+
+        class FakeTrigger:
+            def __init__(self, button, on_press, on_release, is_active):
+                made.update(button=button, on_press=on_press, is_active=is_active)
+
+            def start(self):
+                return True
+        listener = self._listener(trigger_cls=FakeTrigger)
+        listener._start_mouse_trigger()
+        self.assertEqual(made['button'], 'x1')
+        self.assertIsNotNone(listener._mouse_trigger)
+        listener.is_paused = True
+        self.assertFalse(made['is_active'](), 'paused: the button works normally again')
+        made['on_press']()
+        listener.state_manager.start_recording.assert_not_called()
+
+    def test_unsupported_platform_or_bad_name_starts_nothing(self):
+        listener = self._listener(supported=False)
+        listener._start_mouse_trigger()
+        self.assertIsNone(listener._mouse_trigger)
+        listener = self._listener()
+        listener.mouse_button = 'left'      # never hijack the primary button
+        listener._start_mouse_trigger()
+        self.assertIsNone(listener._mouse_trigger)
+
+    def test_config_rejects_unknown_buttons_and_themes(self):
+        import copy
+        import logging
+        from ruamel.yaml import YAML
+        reimport_under(self, fake_platform_modules())
+        from whisper_key.config_manager import validate_config
+        with open(ROOT / 'src' / 'whisper_key' / 'config.defaults.yaml', encoding='utf-8') as f:
+            defaults = YAML().load(f)
+        self.assertEqual(defaults['hotkey']['mouse_button'], '')
+        self.assertEqual(defaults['ui']['theme'], 'system')
+        config = copy.deepcopy(defaults)
+        config['hotkey']['mouse_button'] = 'left'
+        config['ui']['theme'] = 'neon'
+        validate_config(config, defaults, logging.getLogger('test'))
+        self.assertEqual(config['hotkey']['mouse_button'], '')
+        self.assertEqual(config['ui']['theme'], 'system')
+        config['hotkey']['mouse_button'] = 'both'
+        config['ui']['theme'] = 'dark'
+        validate_config(config, defaults, logging.getLogger('test'))
+        self.assertEqual((config['hotkey']['mouse_button'], config['ui']['theme']), ('both', 'dark'))
+
+    def test_settings_saves_off_as_empty(self):
+        try:
+            import tkinter as tk
+            root = tk.Tk(); root.withdraw()
+        except Exception as e:
+            self.skipTest(f'no Tk: {e}')
+        try:
+            from whisper_key.settings_ui import _coerce, _MOUSE_OFF
+            var = tk.StringVar(master=root)
+            self.assertEqual(_coerce(var, _MOUSE_OFF, 'hotkey.mouse_button'), '')
+            self.assertEqual(_coerce(var, 'x2', 'hotkey.mouse_button'), 'x2')
+        finally:
+            root.destroy()
+
+    def test_platform_modules_mirror_the_mouse_api(self):
+        for os_name in ('windows', 'macos'):
+            src = (ROOT / 'src' / 'whisper_key' / 'platform' / os_name / 'mouse.py').read_text(encoding='utf-8')
+            for name in ('BUTTONS', 'def is_supported', 'class MouseButtonTrigger'):
+                self.assertIn(name, src, f'{os_name}: {name}')
+        init = (ROOT / 'src' / 'whisper_key' / 'platform' / '__init__.py').read_text(encoding='utf-8')
+        self.assertEqual(init.count('mouse'), 2, 'imported for both platforms')
+
+    # The real hook procedure, fed hand-built events: presses and releases of
+    # the chosen button are swallowed, others pass through, and a release is
+    # swallowed whenever its press was, even if pause flipped in between.
+    def test_hook_swallows_only_the_chosen_button(self):
+        if sys.platform != 'win32':
+            self.skipTest('Windows only')
+        import ctypes
+        import importlib.util
+        import threading
+        import unittest.mock as mock
+        # Loaded from its file: the platform package pulls in pywin32, which
+        # the lean CI env doesn't have, and this module needs only ctypes.
+        path = ROOT / 'src' / 'whisper_key' / 'platform' / 'windows' / 'mouse.py'
+        spec = importlib.util.spec_from_file_location('mouse_under_test', path)
+        m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(m)
+        pressed, released = threading.Event(), threading.Event()
+        active = [True]
+        trigger = m.MouseButtonTrigger('x2', pressed.set, released.set, is_active=lambda: active[0])
+
+        def event(message, xbutton=0):
+            info = m.MSLLHOOKSTRUCT()
+            info.mouseData = xbutton << 16
+            event.keep = info
+            return trigger._hook_proc(0, message, ctypes.addressof(info))
+        with mock.patch.object(m.user32, 'CallNextHookEx', return_value=0) as passed_on:
+            self.assertEqual(event(m.WM_XBUTTONDOWN, m.XBUTTON1), 0, 'x1 is not ours')
+            self.assertEqual(event(m.WM_MBUTTONDOWN), 0)
+            self.assertEqual(event(m.WM_XBUTTONDOWN, m.XBUTTON2), 1)
+            self.assertTrue(pressed.wait(2))
+            active[0] = False
+            self.assertEqual(event(m.WM_XBUTTONUP, m.XBUTTON2), 1, 'its press was swallowed')
+            self.assertTrue(released.wait(2))
+            self.assertEqual(event(m.WM_XBUTTONDOWN, m.XBUTTON2), 0, 'paused: passes through')
+            self.assertEqual(passed_on.call_count, 3)
+
+    def test_left_and_right_buttons_are_never_offered(self):
+        src = (ROOT / 'src' / 'whisper_key' / 'platform' / 'windows' / 'mouse.py').read_text(encoding='utf-8')
+        buttons = src[src.index('BUTTONS = {'):src.index('}', src.index('BUTTONS = {'))]
+        self.assertNotIn("'left'", buttons)
+        self.assertNotIn("'right'", buttons)
+
+    # ── Light / dark / system theme ─────────────────────────────────────────
+    def _theme(self, resolved):
+        import unittest.mock as mock
+        from whisper_key import ui_theme
+        patcher = mock.patch.object(ui_theme, '_resolved', resolved)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        return ui_theme
+
+    def test_dark_is_unchanged_and_light_maps_every_palette_colour(self):
+        theme = self._theme('dark')
+        self.assertEqual(theme.c('#0d1117'), '#0d1117')
+        theme = self._theme('light')
+        self.assertEqual(theme.c('#0d1117'), '#ffffff')
+        self.assertEqual(theme.c('#C9D1D9'), '#1f2328', 'case-insensitive')
+        self.assertEqual(theme.c('#123456'), '#123456', 'unknown colours pass through')
+
+    def test_system_follows_the_os(self):
+        import unittest.mock as mock
+        from whisper_key import ui_theme
+        with mock.patch.object(ui_theme, 'system_prefers_dark', return_value=True):
+            self.assertEqual(ui_theme.resolve('system'), 'dark')
+        with mock.patch.object(ui_theme, 'system_prefers_dark', return_value=False):
+            self.assertEqual(ui_theme.resolve('system'), 'light')
+        self.assertEqual(ui_theme.resolve('light'), 'light')
+
+    def test_theme_is_read_from_the_users_settings(self):
+        import tempfile
+        import unittest.mock as mock
+        from whisper_key import ui_theme
+        with tempfile.TemporaryDirectory() as folder:
+            with mock.patch('whisper_key.utils.get_user_app_data_path', return_value=folder):
+                self.assertEqual(ui_theme.configured_theme(), 'system', 'no file yet')
+                Path(folder, 'user_settings.yaml').write_text('ui:' + LF + '  theme: Light' + LF, encoding='utf-8')
+                self.assertEqual(ui_theme.configured_theme(), 'light')
+                Path(folder, 'user_settings.yaml').write_text('ui:' + LF + '  theme: neon' + LF, encoding='utf-8')
+                self.assertEqual(ui_theme.configured_theme(), 'system')
+
+    # WCAG contrast: body text 4.5:1, dimmed hints at least 4.5:1 on the window
+    # and on panels, in both themes.
+    def test_both_palettes_are_readable(self):
+        def luminance(hex_colour):
+            channels = [int(hex_colour[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+            linear = [ch / 12.92 if ch <= 0.03928 else ((ch + 0.055) / 1.055) ** 2.4 for ch in channels]
+            return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+
+        def contrast(a, b):
+            high, low = sorted((luminance(a), luminance(b)), reverse=True)
+            return (high + 0.05) / (low + 0.05)
+        for resolved in ('dark', 'light'):
+            theme = self._theme(resolved)
+            for fg, bg in (('#c9d1d9', '#0d1117'), ('#c9d1d9', '#161b22'),
+                           ('#8b949e', '#0d1117'), ('#7d8590', '#161b22')):
+                ratio = contrast(theme.c(fg), theme.c(bg))
+                self.assertGreaterEqual(ratio, 4.5, f'{resolved}: {fg} on {bg} = {ratio:.2f}')
+
+    def test_themed_windows_have_no_raw_colours_left(self):
+        import re
+        for module in ('first_run', 'settings_ui', 'history_window', 'cheat_sheet',
+                       'fallback_window', 'dictionary'):
+            src = (ROOT / 'src' / 'whisper_key' / f'{module}.py').read_text(encoding='utf-8')
+            self.assertIn('from .ui_theme import c as _c', src, module)
+            raw = [m.group(0) for m in re.finditer(r"(?<!_c\()'#[0-9a-fA-F]{6}'", src)]
+            self.assertEqual(raw, [], f'{module} has unthemed colours')
+
+    # ── The add-word dialog clipped its buttons at 150% scaling ─────────────
+    def test_add_word_dialog_sizes_to_its_content(self):
+        src = (ROOT / 'src' / 'whisper_key' / 'dictionary.py').read_text(encoding='utf-8')
+        body = src[src.index('def show_add_word_dialog'):]
+        self.assertNotIn('w, h = 380, 160', body)
+        self.assertIn('_size_and_center(root', body)

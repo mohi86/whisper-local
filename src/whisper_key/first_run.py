@@ -5,6 +5,7 @@
 # minimal: 3 tips + a privacy promise, no settings, no wizard. The full
 # wizard lives in setup_wizard.py for users who run `--setup` explicitly.
 
+from .ui_theme import c as _c   # light/dark/system theme (ui_theme.py)
 import logging
 import threading
 from pathlib import Path
@@ -86,11 +87,11 @@ def _run_welcome(on_close, hotkey_label, shutdown_event=None):
             on_close()
         return
 
-    BG = '#0d1117'
-    BG2 = '#161b22'
-    FG = '#c9d1d9'
-    FG_DIM = '#8b949e'
-    ACCENT = '#1f6feb'
+    BG = _c('#0d1117')
+    BG2 = _c('#161b22')
+    FG = _c('#c9d1d9')
+    FG_DIM = _c('#8b949e')
+    ACCENT = _c('#1f6feb')
 
     root = tk.Tk()
     root.title("Welcome to Whisper Local")

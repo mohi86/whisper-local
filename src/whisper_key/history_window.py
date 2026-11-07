@@ -3,6 +3,7 @@
 # or the tray "Transcript history..." item. Pure Tkinter, no external deps.
 # Highlights matching rows live as the user types, with a click-to-copy action.
 
+from .ui_theme import c as _c   # light/dark/system theme (ui_theme.py)
 import logging
 import threading
 
@@ -58,7 +59,7 @@ def show_history(blocking: bool = False):
 
         root.title("Transcript History — Whisper Local")
         root.geometry("680x520")
-        root.configure(bg='#0d1117')
+        root.configure(bg=_c('#0d1117'))
         root.resizable(True, True)
         try:
             root.attributes('-topmost', True)
@@ -66,9 +67,9 @@ def show_history(blocking: bool = False):
             pass
 
         # ── search bar ──
-        top = tk.Frame(root, bg='#0d1117')
+        top = tk.Frame(root, bg=_c('#0d1117'))
         top.pack(fill='x', padx=10, pady=(10, 4))
-        tk.Label(top, text='🔍', bg='#0d1117', fg='#8b949e',
+        tk.Label(top, text='🔍', bg=_c('#0d1117'), fg=_c('#8b949e'),
                  font=('Segoe UI', 11)).pack(side='left')
         # Every Variable names this window as its master. One created without
         # binds to the first Tk root in the process, which on Windows is the
@@ -76,21 +77,21 @@ def show_history(blocking: bool = False):
         # variable from the one the trace watches, so the search never
         # filtered, and get() read the wrong interpreter (the #17 bug, here).
         search_var = tk.StringVar(master=root)
-        entry = tk.Entry(top, textvariable=search_var, bg='#161b22',
-                         fg='#c9d1d9', insertbackground='#c9d1d9',
+        entry = tk.Entry(top, textvariable=search_var, bg=_c('#161b22'),
+                         fg=_c('#c9d1d9'), insertbackground=_c('#c9d1d9'),
                          relief='flat', bd=4, font=('Segoe UI', 10))
         entry.pack(side='left', fill='x', expand=True, padx=(4, 0))
         entry.focus_set()
 
         # ── listbox ──
-        mid = tk.Frame(root, bg='#0d1117')
+        mid = tk.Frame(root, bg=_c('#0d1117'))
         mid.pack(fill='both', expand=True, padx=10, pady=4)
 
         scroll = tk.Scrollbar(mid)
         scroll.pack(side='right', fill='y')
         listbox = tk.Listbox(mid, yscrollcommand=scroll.set,
-                             bg='#161b22', fg='#c9d1d9',
-                             selectbackground='#1f6feb',
+                             bg=_c('#161b22'), fg=_c('#c9d1d9'),
+                             selectbackground=_c('#1f6feb'),
                              relief='flat', bd=0,
                              font=('Consolas', 9),
                              activestyle='none')
@@ -100,7 +101,7 @@ def show_history(blocking: bool = False):
         # ── preview pane ──
         preview_var = tk.StringVar(master=root, value='')
         preview = tk.Label(root, textvariable=preview_var,
-                           bg='#161b22', fg='#8b949e',
+                           bg=_c('#161b22'), fg=_c('#8b949e'),
                            font=('Segoe UI', 9), anchor='w',
                            wraplength=620, justify='left',
                            padx=8, pady=4)
@@ -108,10 +109,10 @@ def show_history(blocking: bool = False):
 
         # ── status + buttons ──
         status_var = tk.StringVar(master=root)
-        tk.Label(root, textvariable=status_var, bg='#0d1117', fg='#58a6ff',
+        tk.Label(root, textvariable=status_var, bg=_c('#0d1117'), fg=_c('#58a6ff'),
                  anchor='w', font=('Segoe UI', 8)).pack(fill='x', padx=10)
 
-        btns = tk.Frame(root, bg='#0d1117')
+        btns = tk.Frame(root, bg=_c('#0d1117'))
         btns.pack(fill='x', padx=10, pady=(4, 10))
 
         visible = []
@@ -141,19 +142,19 @@ def show_history(blocking: bool = False):
             _open_hotword_suggest_dialog(root, status_var, _update_status)
 
         tk.Button(btns, text='Copy', command=copy_selected,
-                  bg='#1f6feb', fg='white', relief='flat',
+                  bg=_c('#1f6feb'), fg='white', relief='flat',
                   padx=14, pady=3,
                   font=('Segoe UI', 9)).pack(side='left')
         tk.Button(btns, text='Fix this everywhere…', command=fix_always,
-                  bg='#21262d', fg='#c9d1d9', relief='flat',
+                  bg=_c('#21262d'), fg=_c('#c9d1d9'), relief='flat',
                   padx=14, pady=3,
                   font=('Segoe UI', 9)).pack(side='left', padx=(6, 0))
         tk.Button(btns, text='Suggest hotwords', command=suggest_hotwords_action,
-                  bg='#21262d', fg='#c9d1d9', relief='flat',
+                  bg=_c('#21262d'), fg=_c('#c9d1d9'), relief='flat',
                   padx=14, pady=3,
                   font=('Segoe UI', 9)).pack(side='left', padx=(6, 0))
         tk.Button(btns, text='Close', command=root.destroy,
-                  bg='#21262d', fg='#c9d1d9', relief='flat',
+                  bg=_c('#21262d'), fg=_c('#c9d1d9'), relief='flat',
                   padx=14, pady=3,
                   font=('Segoe UI', 9)).pack(side='right')
 
@@ -216,7 +217,7 @@ def _open_correction_dialog(parent, source, status_var, on_saved):
 
     dlg = tk.Toplevel(parent)
     dlg.title("Fix this everywhere")
-    dlg.configure(bg='#0d1117')
+    dlg.configure(bg=_c('#0d1117'))
     dlg.geometry("460x300")
     try:
         dlg.transient(parent)
@@ -225,7 +226,7 @@ def _open_correction_dialog(parent, source, status_var, on_saved):
         pass
 
     def _lbl(text, **kw):
-        tk.Label(dlg, text=text, bg='#0d1117', fg='#8b949e',
+        tk.Label(dlg, text=text, bg=_c('#0d1117'), fg=_c('#8b949e'),
                  anchor='w', justify='left', font=('Segoe UI', 9), **kw).pack(
             fill='x', padx=14, pady=(10, 2))
 
@@ -234,14 +235,14 @@ def _open_correction_dialog(parent, source, status_var, on_saved):
     # read a different interpreter's (empty) variable and the dialog always
     # answered "Nothing saved".
     from_var = tk.StringVar(master=dlg)
-    tk.Entry(dlg, textvariable=from_var, bg='#161b22', fg='#c9d1d9',
-             insertbackground='#c9d1d9', relief='flat', bd=4,
+    tk.Entry(dlg, textvariable=from_var, bg=_c('#161b22'), fg=_c('#c9d1d9'),
+             insertbackground=_c('#c9d1d9'), relief='flat', bd=4,
              font=('Segoe UI', 10)).pack(fill='x', padx=14)
 
     _lbl("With this:")
     to_var = tk.StringVar(master=dlg)
-    to_entry = tk.Entry(dlg, textvariable=to_var, bg='#161b22', fg='#c9d1d9',
-                        insertbackground='#c9d1d9', relief='flat', bd=4,
+    to_entry = tk.Entry(dlg, textvariable=to_var, bg=_c('#161b22'), fg=_c('#c9d1d9'),
+                        insertbackground=_c('#c9d1d9'), relief='flat', bd=4,
                         font=('Segoe UI', 10))
     to_entry.pack(fill='x', padx=14)
 
@@ -250,7 +251,7 @@ def _open_correction_dialog(parent, source, status_var, on_saved):
         _lbl(f"From: “{snippet}”")
 
     msg_var = tk.StringVar(master=dlg)
-    tk.Label(dlg, textvariable=msg_var, bg='#0d1117', fg='#58a6ff',
+    tk.Label(dlg, textvariable=msg_var, bg=_c('#0d1117'), fg=_c('#58a6ff'),
              anchor='w', font=('Segoe UI', 8)).pack(fill='x', padx=14, pady=(8, 0))
 
     def save():
@@ -264,11 +265,11 @@ def _open_correction_dialog(parent, source, status_var, on_saved):
         else:
             msg_var.set("Nothing saved — enter text to replace, and a different result.")
 
-    row = tk.Frame(dlg, bg='#0d1117')
+    row = tk.Frame(dlg, bg=_c('#0d1117'))
     row.pack(fill='x', padx=14, pady=14, side='bottom')
-    tk.Button(row, text='Save correction', command=save, bg='#1f6feb', fg='white',
+    tk.Button(row, text='Save correction', command=save, bg=_c('#1f6feb'), fg='white',
               relief='flat', padx=14, pady=3, font=('Segoe UI', 9)).pack(side='left')
-    tk.Button(row, text='Cancel', command=dlg.destroy, bg='#21262d', fg='#c9d1d9',
+    tk.Button(row, text='Cancel', command=dlg.destroy, bg=_c('#21262d'), fg=_c('#c9d1d9'),
               relief='flat', padx=14, pady=3, font=('Segoe UI', 9)).pack(side='right')
 
 
@@ -282,7 +283,7 @@ def _open_hotword_suggest_dialog(parent, status_var, on_saved):
 
     dlg = tk.Toplevel(parent)
     dlg.title("Suggested hotwords")
-    dlg.configure(bg='#0d1117')
+    dlg.configure(bg=_c('#0d1117'))
     dlg.geometry("360x420")
     try:
         dlg.transient(parent)
@@ -292,26 +293,26 @@ def _open_hotword_suggest_dialog(parent, status_var, on_saved):
 
     if not candidates:
         tk.Label(dlg, text="No strong suggestions yet.\nKeep dictating — names you "
-                 "use often will show up here.", bg='#0d1117', fg='#8b949e',
+                 "use often will show up here.", bg=_c('#0d1117'), fg=_c('#8b949e'),
                  justify='left', font=('Segoe UI', 10)).pack(padx=16, pady=20)
-        tk.Button(dlg, text='Close', command=dlg.destroy, bg='#21262d', fg='#c9d1d9',
+        tk.Button(dlg, text='Close', command=dlg.destroy, bg=_c('#21262d'), fg=_c('#c9d1d9'),
                   relief='flat', padx=14, pady=3, font=('Segoe UI', 9)).pack(pady=10)
         return
 
     tk.Label(dlg, text="Frequent words in your history. Tick any to add to your "
-             "dictionary so Whisper biases toward them:", bg='#0d1117', fg='#8b949e',
+             "dictionary so Whisper biases toward them:", bg=_c('#0d1117'), fg=_c('#8b949e'),
              wraplength=320, justify='left', font=('Segoe UI', 9)).pack(
         fill='x', padx=14, pady=(12, 6))
 
     checks = []
-    body = tk.Frame(dlg, bg='#0d1117')
+    body = tk.Frame(dlg, bg=_c('#0d1117'))
     body.pack(fill='both', expand=True, padx=14)
     for word, count in candidates:
         var = tk.BooleanVar(master=dlg, value=False)
         checks.append((word, var))
         tk.Checkbutton(body, text=f'{word}   ·  {count}×', variable=var,
-                       bg='#0d1117', fg='#c9d1d9', selectcolor='#161b22',
-                       activebackground='#0d1117', activeforeground='#c9d1d9',
+                       bg=_c('#0d1117'), fg=_c('#c9d1d9'), selectcolor=_c('#161b22'),
+                       activebackground=_c('#0d1117'), activeforeground=_c('#c9d1d9'),
                        anchor='w', font=('Segoe UI', 10)).pack(fill='x')
 
     def add_ticked():
@@ -324,9 +325,9 @@ def _open_hotword_suggest_dialog(parent, status_var, on_saved):
         status_var.set(f'Added {added} hotword{"s" if added != 1 else ""} ✓')
         dlg.destroy()
 
-    row = tk.Frame(dlg, bg='#0d1117')
+    row = tk.Frame(dlg, bg=_c('#0d1117'))
     row.pack(fill='x', padx=14, pady=12, side='bottom')
-    tk.Button(row, text='Add selected', command=add_ticked, bg='#1f6feb', fg='white',
+    tk.Button(row, text='Add selected', command=add_ticked, bg=_c('#1f6feb'), fg='white',
               relief='flat', padx=14, pady=3, font=('Segoe UI', 9)).pack(side='left')
-    tk.Button(row, text='Cancel', command=dlg.destroy, bg='#21262d', fg='#c9d1d9',
+    tk.Button(row, text='Cancel', command=dlg.destroy, bg=_c('#21262d'), fg=_c('#c9d1d9'),
               relief='flat', padx=14, pady=3, font=('Segoe UI', 9)).pack(side='right')

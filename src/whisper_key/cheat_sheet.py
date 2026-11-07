@@ -5,6 +5,7 @@
 # the app actually responds to. Also lists transform hotkeys when transforms_manager
 # is supplied.
 
+from .ui_theme import c as _c   # light/dark/system theme (ui_theme.py)
 import logging
 import threading
 
@@ -57,12 +58,12 @@ def _run(config_manager, transforms_manager):
         logger.warning("Tkinter not available; cheat sheet disabled")
         return
 
-    BG = '#0d1117'
-    BG2 = '#161b22'
-    FG = '#c9d1d9'
-    FG_DIM = '#8b949e'
-    KEY_BG = '#21262d'
-    ACCENT = '#1f6feb'
+    BG = _c('#0d1117')
+    BG2 = _c('#161b22')
+    FG = _c('#c9d1d9')
+    FG_DIM = _c('#8b949e')
+    KEY_BG = _c('#21262d')
+    ACCENT = _c('#1f6feb')
 
     if config_manager is None:
         try:
@@ -95,6 +96,11 @@ def _run(config_manager, transforms_manager):
         ("Pause all hotkeys", hk.get('pause_hotkey'),
          "Disable every Whisper Local hotkey until pressed again"),
     ]
+    # Shown only when set: a mouse button that records like the record hotkey.
+    from .utils import MOUSE_BUTTON_LABELS
+    if hk.get('mouse_button') in MOUSE_BUTTON_LABELS:
+        items.insert(1, ("Record with the mouse", MOUSE_BUTTON_LABELS[hk['mouse_button']].lower(),
+                         "Hold to dictate, same as the record hotkey"))
 
     transforms = []
     if transforms_manager:

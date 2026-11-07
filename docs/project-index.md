@@ -66,6 +66,8 @@ Open-source project maintained as `drajb/whisper-local` by Rohit Burani. Interna
 | **Console Welcome** | `onboarding_tutorial.py` | One-time first-launch console welcome banner | - |
 | **Whisper.cpp Backend** | `whisper_engine_cpp.py` | Opt-in `whisper_cpp` backend mirroring WhisperEngine's API | pywhispercpp |
 | **Foreground App** | `platform/*/foreground.py` | Detects the active window/app for per-app rules | pywin32 / pyobjc |
+| **Window Theme** | `ui_theme.py` | Light / dark / follow-the-system colours for the Tk windows | winreg, defaults |
+| **Mouse Trigger** | `platform/*/mouse.py` | Mouse button as push-to-talk (low-level hook on Windows) | ctypes |
 | **Console Control** | `platform/windows/console.py` | Show/hide/own the console window (pyapp builds) | ctypes |
 
 ## Project Structure
@@ -132,4 +134,4 @@ whisper-local/
 
 ---
 
-*Last Updated: 2026-10-07 | Project Status: Active Development*
+*Last Updated: 2026-11-06 | Project Status: Active Development*

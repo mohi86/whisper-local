@@ -302,6 +302,7 @@ def setup_hotkey_listener(hotkey_config, state_manager, voice_commands_enabled=T
         paste_last_hotkey=hotkey_config.get('paste_last_hotkey'),
         double_tap_to_lock=bool(hotkey_config.get('double_tap_to_lock', False)),
         double_tap_window_ms=_int_setting(hotkey_config.get('double_tap_window_ms'), 400),
+        mouse_button=hotkey_config.get('mouse_button') or '',
     )
 
 # A numeric setting from hand-edited YAML, falling back to `default` rather

@@ -14,7 +14,8 @@ from io import StringIO
 
 from ruamel.yaml import YAML
 
-from .utils import resolve_asset_path, beautify_hotkey, get_user_app_data_path, get_version
+from .utils import (resolve_asset_path, beautify_hotkey, get_user_app_data_path, get_version,
+                    MOUSE_BUTTON_LABELS)
 from .platform import IS_MACOS
 
 REPO_URL = "https://github.com/drajb/whisper-local"
@@ -286,6 +287,11 @@ class ConfigManager:
             mode_hint = " (hold to record, double-tap for hands-free)"
         print(f"   [{recording_hotkey}] for transcription{mode_hint}")
 
+        # The mouse button records exactly like the hotkey (issue #36).
+        mouse_button = self.config['hotkey'].get('mouse_button')
+        if mouse_button in MOUSE_BUTTON_LABELS:
+            print(f"   [{MOUSE_BUTTON_LABELS[mouse_button]}] records the same way")
+
         paste_last = self.config['hotkey'].get('paste_last_hotkey')
         if paste_last:
             print(f"   [{beautify_hotkey(paste_last)}] to paste your last dictation again")
@@ -473,6 +479,14 @@ def validate_config(config, default_config, logger):
     _validate_numeric_range(config, default_config, 'vad.vad_silence_timeout_seconds', logger, min_val=1.0, max_val=36000.0)
 
     _validate_numeric_range(config, default_config, 'stats.typing_wpm', logger, min_val=1, max_val=300)
+
+    theme = str(_get_config_value_at_path(config, 'ui.theme') or '').strip().lower()
+    if theme not in ('system', 'dark', 'light'):
+        _set_to_default(config, default_config, 'ui.theme', theme, logger)
+
+    mouse_button = str(_get_config_value_at_path(config, 'hotkey.mouse_button') or '').strip().lower()
+    if mouse_button not in ('', 'middle', 'x1', 'x2', 'both'):
+        _set_to_default(config, default_config, 'hotkey.mouse_button', mouse_button, logger)
 
     recording_mode = _get_config_value_at_path(config, 'hotkey.recording_mode')
     if recording_mode not in ('toggle', 'push_to_talk'):

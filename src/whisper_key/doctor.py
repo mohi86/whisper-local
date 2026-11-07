@@ -179,6 +179,13 @@ def _section_config() -> int:
         hotkey_cfg = cfg.get_hotkey_config()
         Check("Recording mode").info(hotkey_cfg.get('recording_mode', 'toggle')).print()
         Check("Recording hotkey").info(hotkey_cfg.get('recording_hotkey', '?')).print()
+        if hotkey_cfg.get('mouse_button'):
+            from .platform import mouse
+            if mouse.is_supported():
+                Check("Mouse button to dictate").info(hotkey_cfg['mouse_button']).print()
+            else:
+                Check("Mouse button to dictate").warn(
+                    f"{hotkey_cfg['mouse_button']} is set, but this platform doesn't support it yet").print()
     except Exception as e:
         Check("Effective config loads").fail(str(e)).print()
         failures += 1
