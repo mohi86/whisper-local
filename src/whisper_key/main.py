@@ -251,10 +251,23 @@ def setup_system_tray(tray_config, config_manager, state_manager, model_registry
         console_config=console_config
     )
 
+# Tray mode (the default) keeps the GUI-subsystem .exe windowless: no terminal
+# on screen or in the taskbar, the tray icon is the whole UI. It needs the tray,
+# though; with the tray disabled the app would have no visible surface at all,
+# so fall back to a console then.
+def setup_console(config_manager):
+    start_in_tray = (config_manager.get_console_config().get('start_in_tray', True)
+                     and config_manager.get_system_tray_config().get('enabled', True))
+    console.setup(start_in_tray=start_in_tray)
+
+
 def run_gpu_onboarding(config_manager, whisper_config):
     gpu_status = config_manager.config.get('onboarding', {}).get('gpu', 'pending')
     if gpu_status != 'pending':
         return whisper_config
+    # Tray mode starts windowless; open a console just for this prompt (it's
+    # hidden again once startup finishes). A no-op when we can't own one.
+    console.open_console()
     # GPU onboarding is interactive (reads a keypress). Under a windowless launch
     # (pythonw / autostart, no console) there's no way to answer the prompt, so
     # defer it — leave status 'pending' and let the next normal (console) launch
@@ -511,7 +524,6 @@ def main():
         from .local_server import run_server
         sys.exit(run_server(args.serve_host, args.serve_port))
 
-    console.setup()
     sys.stdout.write("\033]0;Whisper Local\007")
     sys.stdout.flush()
     app.setup()
@@ -523,8 +535,7 @@ def main():
     mutex_handle = guard_against_multiple_instances(instance_name)  # noqa: F841
 
     mode_label = " [TEST]" if args.test else ""
-    print(f"Starting Whisper Local [{get_version()}]{mode_label}...")
-    
+
     shutdown_event = threading.Event()
     setup_signal_handlers(shutdown_event)
     
@@ -534,6 +545,9 @@ def main():
     
     try:
         config_manager = ConfigManager()
+        # Before logging, so the console log handler binds to the new console.
+        setup_console(config_manager)
+        print(f"Starting Whisper Local [{get_version()}]{mode_label}...")
         setup_logging(config_manager)
 
         # Self-heal an autostart entry left broken by the pre-0.16.2 pyapp bug

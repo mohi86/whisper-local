@@ -1,8 +1,8 @@
 # platform/windows/console.py
-# Show/hide/own the console window. The pyapp .exe launches with a console the
-# user didn't ask for, so the app hides it and treats the tray as the real UI;
-# these helpers also detect whether we own the window (vs being run from an
-# existing terminal, where hiding it would be rude).
+# Own/show/hide the console window of the GUI-subsystem pyapp .exe. That build
+# starts with no console at all; in tray mode (the default) it stays that way and
+# a console is only opened on demand, when a prompt needs the keyboard. We never
+# touch a console we didn't create (e.g. a terminal the user launched us from).
 # macOS mirror: platform/macos/console.py (no-op stubs).
 import ctypes
 import ctypes.wintypes as wintypes
@@ -89,12 +89,25 @@ def _configure_console():
     kernel32.SetCurrentConsoleFontEx(handle, False, ctypes.byref(font))
 
 
-def setup():
+# Startup hook. Tray mode leaves the process windowless; otherwise the console
+# is opened straight away so the user sees the startup output.
+def setup(start_in_tray=True):
+    if not start_in_tray:
+        open_console()
+
+
+# Create (once) a console for this process and point stdio at it. Only the
+# pyapp build qualifies: AllocConsole fails when a console already exists, which
+# is exactly the "launched from someone else's terminal" case we must not own.
+# Returns True when a console of ours is open, so callers can prompt the user.
+def open_console():
     global _hwnd, _active
+    if _active:
+        return True
     if not os.environ.get("PYAPP"):
-        return
+        return False
     if not kernel32.AllocConsole():
-        return
+        return False
     _hwnd = None
     _get_hwnd()
     sys.stdout = open("CONOUT$", "w", encoding="utf-8", errors="replace")
@@ -102,6 +115,7 @@ def setup():
     sys.stdin = open("CONIN$", "r")
     _configure_console()
     _active = True
+    return True
 
 
 def owns_console():

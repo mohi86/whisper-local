@@ -66,7 +66,13 @@ jobs:
           $dir = Get-ChildItem -Directory -Filter "pyapp-v*" | Select-Object -First 1
           if (-not $dir) { $dir = Get-ChildItem -Directory -Filter "pyapp-*" | Select-Object -First 1 }
           "PYAPP_DIR=$($dir.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
-      - name: Build whisper-local.exe
+      # Two builds of the same wheel:
+      #   whisper-local.exe         - tray app. PYAPP_IS_GUI runs it under
+      #                               pythonw, so no terminal window stays open
+      #                               (pyapp still shows one while installing).
+      #   whisper-local-console.exe - console app, for the CLI flags (--version,
+      #                               --doctor...) whose output pythonw discards.
+      - name: Build whisper-local.exe + whisper-local-console.exe
         shell: pwsh
         env:
           PYAPP_PYTHON_VERSION: '3.12'
@@ -85,25 +91,35 @@ jobs:
           $wheel = (Get-ChildItem dist\*.whl | Select-Object -First 1).FullName
           $env:PYAPP_PROJECT_PATH = $wheel
           Write-Host "Embedding wheel: $wheel"
-          Push-Location $env:PYAPP_DIR
-          cargo build --release
-          if ($LASTEXITCODE -ne 0) { throw "cargo build failed" }
-          Pop-Location
           New-Item -ItemType Directory -Force -Path exe | Out-Null
-          Copy-Item "$env:PYAPP_DIR\target\release\pyapp.exe" "exe\whisper-local.exe" -Force
-          Get-Item "exe\whisper-local.exe" | Format-List Name, Length
+          $variants = @(
+            @{ Name = 'whisper-local';         IsGui = $true },
+            @{ Name = 'whisper-local-console'; IsGui = $false }
+          )
+          foreach ($variant in $variants) {
+            if ($variant.IsGui) { $env:PYAPP_IS_GUI = 'true' }
+            else { Remove-Item Env:PYAPP_IS_GUI -ErrorAction SilentlyContinue }
+            Push-Location $env:PYAPP_DIR
+            cargo build --release
+            if ($LASTEXITCODE -ne 0) { throw "cargo build failed for $($variant.Name)" }
+            Pop-Location
+            Copy-Item "$env:PYAPP_DIR\target\release\pyapp.exe" "exe\$($variant.Name).exe" -Force
+            Get-Item "exe\$($variant.Name).exe" | Format-List Name, Length
+          }
       # Launch the real .exe twice, as a user would. The first launch runs with
       # every network request pointed at a dead proxy: Python must come out of
       # the .exe itself, so the launch may only fail later, at pip, and never
       # on a python-build-standalone download (issue #27). The second launch
-      # is a normal first run and must install and start.
-      - name: Smoke-test whisper-local.exe
+      # is a normal first run and must install and start. Runs against the
+      # console build: the tray build discards stdout, so it can't be read
+      # back. Both embed the same wheel and Python.
+      - name: Smoke-test whisper-local-console.exe
         shell: pwsh
         run: |
           $PSNativeCommandUseErrorActionPreference = $false
-          $exe = (Resolve-Path exe\whisper-local.exe).Path
+          $exe = (Resolve-Path exe\whisper-local-console.exe).Path
           $sizeMB = [math]::Round((Get-Item $exe).Length / 1MB, 1)
-          Write-Host "whisper-local.exe is $sizeMB MB"
+          Write-Host "whisper-local-console.exe is $sizeMB MB"
           if ($sizeMB -lt 15) { throw "the .exe is $sizeMB MB; an embedded Python is ~20 MB or more" }
 
           $env:HTTPS_PROXY = 'http://127.0.0.1:9'
@@ -124,9 +140,11 @@ jobs:
       - name: Compute checksum
         shell: pwsh
         run: |
-          $hash = (Get-FileHash exe\whisper-local.exe -Algorithm SHA256).Hash.ToLower()
-          "$hash  whisper-local.exe" | Out-File -FilePath exe\whisper-local.exe.sha256 -Encoding ascii
-          Write-Host "SHA256: $hash"
+          foreach ($name in 'whisper-local.exe', 'whisper-local-console.exe') {
+            $hash = (Get-FileHash "exe\$name" -Algorithm SHA256).Hash.ToLower()
+            "$hash  $name" | Out-File -FilePath "exe\$name.sha256" -Encoding ascii
+            Write-Host "SHA256 ${name}: $hash"
+          }
 
       # A signed statement, recorded by GitHub, that this exact file was built
       # by this workflow from this repository at this commit. Anyone can check
@@ -137,7 +155,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: actions/attest-build-provenance@v2
         with:
-          subject-path: exe/whisper-local.exe
+          subject-path: exe/*.exe
       - uses: actions/upload-artifact@v4
         with:
           name: exe
@@ -193,6 +211,8 @@ jobs:
             Python is built in. The first launch installs the app's libraries
             from PyPI and downloads the default Whisper `base` model (~141 MB),
             which takes a few minutes; after that it runs **100% offline**.
+            It lives in the system tray, with no terminal window. Prefer to see its
+            output, or use the command-line flags? Get `whisper-local-console.exe`.
 
             **Option 2 — pip (Windows / macOS, needs Python 3.11+)**
             ```bash

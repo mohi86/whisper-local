@@ -104,8 +104,8 @@ if (-not (Test-Path $DistPath)) {
 }
 
 $Builds = @(
-    @{ Name = "$AppName";      IsGui = $false; Label = "console" },
-    @{ Name = "$AppName-hideable"; IsGui = $true;  Label = "hideable (GUI subsystem)" }
+    @{ Name = "$AppName";         IsGui = $true;  Label = "tray app (GUI, no terminal window)" },
+    @{ Name = "$AppName-console"; IsGui = $false; Label = "console (visible terminal, CLI flags)" }
 )
 
 Push-Location $PyAppSourcePath

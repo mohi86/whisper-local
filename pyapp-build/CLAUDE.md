@@ -22,8 +22,8 @@ powershell.exe -ExecutionPolicy Bypass -File pyapp-build\build-pyapp.ps1
 `-Clean` flag forces full Rust rebuild.
 
 Produces two executables in `dist\`:
-- `whisper-local.exe` — console (visible terminal)
-- `whisper-local-hideable.exe` — GUI subsystem (for `console.start_hidden`/minimize-to-tray)
+- `whisper-local.exe` — tray app: runs under pythonw, no terminal window (`console.start_in_tray`)
+- `whisper-local-console.exe` — console: visible terminal; use it for CLI flags like `--version`/`--doctor`, whose output the tray build discards
 
 ## How it works
 

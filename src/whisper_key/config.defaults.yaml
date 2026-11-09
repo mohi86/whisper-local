@@ -416,9 +416,12 @@ system_tray: # System Tray Settings
     # Tooltip text when hovering over tray icon
     tooltip: Whisper Local
 
-console: # Console Window Management (whisper-local-hideable.exe only)
-    # Hide console window after startup (requires system tray)
-    start_hidden: false
+console: # Console Window Management (standalone whisper-local.exe only)
+    # true = run from the tray icon only: no terminal window on screen or in the
+    #        taskbar. A console opens briefly only when setup needs an answer
+    #        (first-run GPU prompt). Requires the system tray to be enabled.
+    # false = open a console window at startup showing the app's output
+    start_in_tray: true
 
 onboarding: # First-run setup state (managed automatically)
     # GPU acceleration setup status

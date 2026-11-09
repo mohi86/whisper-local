@@ -52,6 +52,10 @@ def handle_gpu_failure(error, config_manager):
     logger.error(f"GPU model load failed: {error}")
     print(f"\n{BOLD_RED}GPU acceleration failed:{RESET} {error}\n")
 
+    # Tray mode starts windowless; open a console for the prompt if we can own one.
+    from .platform import console
+    console.open_console()
+
     # Windowless launch (pythonw / autostart): no keyboard can answer the
     # prompt, so waiting on it would hang startup. Use CPU for this session,
     # as choosing "Fall back to CPU" would; the next console launch asks again.

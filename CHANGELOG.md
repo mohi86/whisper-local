@@ -2,6 +2,20 @@
 
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- **The Windows app lives in the tray, with no terminal window.**
+  `whisper-local.exe` is now the GUI build: it runs under pythonw, so nothing
+  sits on screen or in the taskbar. The tray icon is the whole UI. A console
+  appears only while pyapp installs on first launch, or when the first-run GPU
+  prompt needs an answer, and is hidden again afterwards ("Show Console" in the
+  tray brings it back). The old visible-terminal build ships alongside it as
+  `whisper-local-console.exe`; use it for CLI flags such as `--version` and
+  `--doctor`, whose output the tray build discards. `whisper-local-hideable.exe`
+  is gone, and `console.start_hidden: false` is replaced by
+  `console.start_in_tray: true`. Set it to `false` to open a console at startup.
+
 ## [0.24.0]
 
 ### Added

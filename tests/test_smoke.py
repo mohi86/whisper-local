@@ -4553,7 +4553,7 @@ class StandaloneExeTests(unittest.TestCase):
 
     def _build_exe_env(self, workflow):
         steps = workflow['jobs']['build-exe']['steps']
-        build = next(s for s in steps if s.get('name') == 'Build whisper-local.exe')
+        build = next(s for s in steps if s.get('name') == 'Build whisper-local.exe + whisper-local-console.exe')
         return build['env']
 
     def test_python_is_embedded_in_the_exe(self):
@@ -4564,7 +4564,7 @@ class StandaloneExeTests(unittest.TestCase):
     def test_the_exe_is_launched_offline_and_online_before_publishing(self):
         text, workflow = self._workflow()
         names = [s.get('name') for s in workflow['jobs']['build-exe']['steps']]
-        self.assertIn('Smoke-test whisper-local.exe', names)
+        self.assertIn('Smoke-test whisper-local-console.exe', names)
         self.assertIn('python-build-standalone', text, 'the offline launch must check for the old download')
         self.assertIn("HTTPS_PROXY = 'http://127.0.0.1:9'", text)
         needs = workflow['jobs']['publish-pypi']['needs']
@@ -4578,7 +4578,7 @@ class StandaloneExeTests(unittest.TestCase):
         self.assertEqual(job['permissions'].get('id-token'), 'write')
         attest = [s for s in job['steps'] if 'attest-build-provenance' in str(s.get('uses', ''))]
         self.assertEqual(len(attest), 1)
-        self.assertEqual(attest[0]['with']['subject-path'], 'exe/whisper-local.exe')
+        self.assertEqual(attest[0]['with']['subject-path'], 'exe/*.exe')
 
     def test_manual_runs_never_publish(self):
         _, workflow = self._workflow()
@@ -4591,6 +4591,61 @@ class StandaloneExeTests(unittest.TestCase):
         for rel in ('README.md', 'docs/faq.md', 'docs/troubleshooting.md'):
             text = (ROOT / rel).read_text(encoding='utf-8')
             self.assertIn('gh attestation verify whisper-local.exe --repo drajb/whisper-local', text, rel)
+
+    def test_the_main_exe_is_the_tray_build(self):
+        # whisper-local.exe must run under pythonw (no terminal window); the
+        # console variant ships alongside it for the CLI flags.
+        text, workflow = self._workflow()
+        steps = workflow['jobs']['build-exe']['steps']
+        build = next(s for s in steps if s.get('name') == 'Build whisper-local.exe + whisper-local-console.exe')
+        self.assertIn("Name = 'whisper-local';         IsGui = $true", build['run'])
+        self.assertIn("Name = 'whisper-local-console'; IsGui = $false", build['run'])
+        self.assertIn("$env:PYAPP_IS_GUI = 'true'", build['run'])
+
+
+# ── Tray mode: no console window ────────────────────────────────────────────
+@unittest.skipUnless(sys.platform == 'win32', 'the console module is Windows-only')
+class TrayModeConsoleTests(unittest.TestCase):
+    """The tray build starts windowless and must stay that way unless a prompt
+    needs the keyboard, and must never adopt a console it didn't create."""
+
+    def setUp(self):
+        import unittest.mock as mock
+        from whisper_key.platform.windows import console
+        self.console = console
+        self.mock = mock
+        self._saved_active = console._active
+
+    def tearDown(self):
+        self.console._active = self._saved_active
+
+    def test_tray_mode_opens_no_console_at_startup(self):
+        with self.mock.patch.object(self.console, 'open_console') as open_console:
+            self.console.setup(start_in_tray=True)
+        open_console.assert_not_called()
+
+    def test_console_mode_opens_one_at_startup(self):
+        with self.mock.patch.object(self.console, 'open_console') as open_console:
+            self.console.setup(start_in_tray=False)
+        open_console.assert_called_once()
+
+    def test_outside_pyapp_a_console_is_never_allocated(self):
+        # Run from a terminal / pythonw: that console (or its absence) isn't ours.
+        self.console._active = False
+        with self.mock.patch.dict('os.environ', {}, clear=False), \
+             self.mock.patch.object(self.console, 'kernel32') as kernel32:
+            os.environ.pop('PYAPP', None)
+            self.assertFalse(self.console.open_console())
+        kernel32.AllocConsole.assert_not_called()
+
+    def test_an_existing_console_is_not_adopted(self):
+        # AllocConsole fails when the process already has a console.
+        self.console._active = False
+        with self.mock.patch.dict('os.environ', {'PYAPP': r'C:\apps\whisper-local.exe'}), \
+             self.mock.patch.object(self.console, 'kernel32') as kernel32:
+            kernel32.AllocConsole.return_value = 0
+            self.assertFalse(self.console.open_console())
+        self.assertFalse(self.console.owns_console())
 
 
 # ── Windows on ARM (#32) ─────────────────────────────────────────────────────

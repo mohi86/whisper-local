@@ -485,10 +485,13 @@ class SystemTray:
     def _show_console(self, icon=None, item=None):
         console.show()
 
+    # Runs once startup is done. In tray mode a console only exists if a prompt
+    # opened one; hide it now that the prompt is answered ("Show Console" in the
+    # menu brings it back). Minimising the console always sends it to the tray.
     def apply_console_settings(self):
         if not console.owns_console() or not self.available:
             return
-        if self.console_config.get('start_hidden', False):
+        if self.console_config.get('start_in_tray', True):
             console.hide()
         console.start_minimize_monitor(console.hide)
 
